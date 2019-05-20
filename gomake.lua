@@ -512,9 +512,17 @@ local _sub_makefile = function()
         uninstall_binaries = uninstall_binaries .. '\t@rm /usr/local/bin/' .. v.binary .. ' -f\n'
     end
 
+    local project = ''
+    echo_ex(output_ex('Project name : ', COLORS.magenta, COLORS.bright))
+    local tline = io.read()
+    if tline ~= nil then
+        project = string.match(tline, '([%w%-_]+)')
+    end
+
     local content = gen_makefile()
     content = string.gsub(content, '_BUILD_BINARIES_', build_binaries)
     content = string.gsub(content, '_UNINSTALL_BINARIES_', uninstall_binaries)
+    content = string.gsub(content, '_PROJECT_', project)
     local fp = assert(io.open(target_directory .. '/Makefile', 'w'), 'Open Makefile error') 
     fp:write(content)
     fp:close()
