@@ -493,12 +493,12 @@ local _sub_makefile = function()
 
             if true == parse_binary(content) then
                 -- TODO: same name
-                local sub, filename = string.match(f, '([%w%-_]+)/([%w%-_]+%.go)')
+                local sub, filename = string.match(f, '([%w%-_]+)/([%w%-_]+)%.go')
                 local build_target = string.gsub(f, '([%w%-_]+%.go)', '')
-                if binary == 'main' and sub ~= 'src' then
-                    binaries[#binaries + 1] = {binary = filename, target = build_target, source = f}
-                else
+                if filename == 'main' and sub ~= 'src' then
                     binaries[#binaries + 1] = {binary = sub, target = build_target, source = f}
+                else
+                    binaries[#binaries + 1] = {binary = filename, target = build_target, source = f}
                 end
             end
         end
@@ -523,7 +523,7 @@ local _sub_makefile = function()
     content = string.gsub(content, '_BUILD_BINARIES_', build_binaries)
     content = string.gsub(content, '_UNINSTALL_BINARIES_', uninstall_binaries)
     content = string.gsub(content, '_PROJECT_', project)
-    local fp = assert(io.open(target_directory .. '/Makefile', 'w'), 'Open Makefile error') 
+    local fp = assert(io.open(target_directory .. '/Makefile', 'w'), 'Open Makefile error')
     fp:write(content)
     fp:close()
 
