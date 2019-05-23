@@ -272,93 +272,13 @@ end
 
 -- Vendor FS
 function valid_vendor_import(import)
-    return import:match('^([%w%-_]+%..-/.-/[%w%-_]+)')
-end
+    local r = import:match('^([%w%-_]+%..-/.-/[%w%-_%.]+)')
+    if r == nil then
+        r = import:match('^([%w%-_]+%..-/[%w%-_%.]+)')
+    end
 
-local VENDOR_ALIASES = {
-    {
-        pattern = 'cloud.google.com/go',
-        repo = 'github.com/googleapis/google-cloud-go.git',
-        vendor_dir = target_directory .. '/src/vendor/cloud.google.com/go',
-        repo_dir = target_directory .. '/src/vendor/cloud.google.com',
-        vendor_r = 'cloud.google.com/go',
-        recursive = false
-    },
-    {
-        pattern = 'google.golang.org/api',
-        repo = 'github.com/googleapis/google-api-go-client.git',
-        vendor_dir = target_directory .. '/src/vendor/google.golang.org/api',
-        repo_dir = target_directory .. '/src/vendor/google.golang.org',
-        vendor_r = 'google.golang.org/api',
-        recursive = false
-    },
-    {
-        pattern = 'google.golang.org/grpc',
-        repo = 'github.com/grpc/grpc-go.git',
-        vendor_dir = target_directory .. '/src/vendor/google.golang.org/grpc',
-        repo_dir = target_directory .. '/src/vendor/google.golang.org',
-        vendor_r = 'google.golang.org/grpc',
-        recursive = false
-    },
-    {
-        pattern = 'google.golang.org/genproto',
-        repo = 'github.com/google/go-genproto.git',
-        vendor_dir = target_directory .. '/src/vendor/google.golang.org/genproto',
-        repo_dir = target_directory .. '/src/vendor/google.golang.org',
-        vendor_r = 'google.golang.org/genproto',
-        recursive = false
-    },
-    {
-        pattern = 'google.golang.org/appengine',
-        repo = 'github.com/golang/appengine.git',
-        vendor_dir = target_directory .. '/src/vendor/google.golang.org/appengine',
-        repo_dir = target_directory .. '/src/vendor/google.golang.org',
-        vendor_r = 'google.golang.org/appengine',
-        recursive = false
-    },
-    {
-        pattern = 'go4.org',
-        repo = 'github.com/go4org/go4.git',
-        vendor_dir = target_directory .. '/src/vendor/go4.org',
-        repo_dir = target_directory .. '/src/vendor',
-        recursive = true
-    },
-    {
-        pattern = 'go.opencensus.io',
-        repo = 'github.com/census-instrumentation/opencensus-go.git',
-        vendor_dir = target_directory .. '/src/vendor/go.opencensus.io',
-        repo_dir = target_directory .. '/src/vendor',
-        recursive = true
-    },
-    {
-        pattern = 'honnef.co/go/tools',
-        repo = 'github.com/dominikh/go-tools.git',
-        vendor_dir = target_directory .. '/src/vendor/honnef.co/go/tools',
-        repo_dir = target_directory .. '/src/vendor/honnef.co/go',
-        recursive = true
-    },
-    {
-        pattern = 'honnef.co/go/js',
-        repo = 'github.com/dominikh/go-js-dom.git',
-        vendor_dir = target_directory .. '/src/vendor/honnef.co/go/js',
-        repo_dir = target_directory .. '/src/vendor/honnef.co/go',
-        recursive = true
-    },
-    {
-        pattern = 'bazil.org/fuse',
-        repo = 'github.com/bazil/fuse.git',
-        vendor_dir = target_directory .. '/src/vendor/bazil.org/fuse',
-        repo_dir = target_directory .. '/src/vendor/bazil.org',
-        recursive = true
-    },
-    {
-        pattern = 'go.etcd.io/etcd',
-        repo = 'github.com/etcd-io/etcd.git',
-        vendor_dir = target_directory .. '/src/vendor/go.etcd.io/etcd',
-        repo_dir = target_directory .. '/src/vendor/go.etcd.io',
-        recursive = true
-    }
-}
+    return r
+end
 
 function prepare_vendor(vendor, import)
     local r = {
