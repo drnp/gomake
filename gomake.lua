@@ -106,6 +106,16 @@ function assert_git()
     end
 end
 
+function assert_curl()
+    local cmd = 'curl --version'
+    local c, _ = run_cmd(cmd)
+    if c == nil then
+        print(output_ex('cURL missed !', COLORS.red, COLORS.bright))
+
+        os.exit(R_FATAL)
+    end
+end
+
 function md5_sum(input)
     local cmd = 'echo "' .. input .. '" | md5sum'
     local c, o = run_cmd(cmd)
@@ -340,56 +350,78 @@ local VENDOR_ALIASES = {
         vendor_dir = target_directory .. '/src/vendor/bazil.org/fuse',
         repo_dir = target_directory .. '/src/vendor/bazil.org',
         recursive = true
+    },
+    {
+        pattern = 'go.etcd.io/etcd',
+        repo = 'github.com/etcd-io/etcd.git',
+        vendor_dir = target_directory .. '/src/vendor/go.etcd.io/etcd',
+        repo_dir = target_directory .. '/src/vendor/go.etcd.io',
+        recursive = true
     }
 }
 
-function prepare_vendor(vendor)
+function prepare_vendor(vendor, import)
     local r = {
         repo = vendor,
         vendor_dir = target_directory .. '/src/vendor/' .. vendor,
         repo_dir = target_directory .. '/src/vendor/' .. string.match(vendor, '(.+)/'),
-        recursive = true
+        recursive = true,
+        vendor_r = vendor,
+        import_r = import,
+        next_dir = target_directory .. '/src/vendor/' .. import
     }
 
-    if string.match(vendor, '^github.com') then
-        r['repo'] = r['repo'] .. '.git'
-    end
-
-    for k, item in pairs(VENDOR_ALIASES) do
-        if string.find(vendor, item.pattern) then
-            r['repo'] = item.repo
-            r['vendor_dir'] = item.vendor_dir
-            r['repo_dir'] = item.repo_dir
-            r['recursive'] = item.recursive
-            break
-        end
-    end
-
+    -- Hacks
     if string.find(vendor, 'golang.org/x') then
-        r['repo'] = string.gsub(vendor, 'golang.org/x', 'github.com/golang') .. '.git'
-        r['recursive'] = false
+        r['repo'] = string.gsub(vendor, 'golang.org/x', 'github.com/golang')
+    elseif string.find(vendor, 'cloud.google.com/go') then
+        r['repo'] = 'github.com/googleapis/google-cloud-go'
+    elseif string.find(vendor, 'google.golang.org/api') then
+        r['repo'] = 'github.com/googleapis/google-api-go-client'
+    elseif string.find(vendor, 'google.golang.org/grpc') then
+        r['repo'] = 'github.com/grpc/grpc-go.git'
+    elseif string.find(vendor, 'google.golang.org/genproto') then
+        r['repo'] = 'github.com/google/go-genproto.git'
+    elseif string.find(vendor, 'google.golang.org/appengine') then
+        r['repo'] = 'github.com/golang/appengine.git'
     end
 
-    if string.find(vendor, 'k8s.io') then
-        r['repo'] = string.gsub(vendor, 'k8s.io', 'github.com/kubernetes') .. '.git'
-        r['recursive'] = false
-    end
-
-    r['repo'] = 'https://' .. r['repo']
-    if r['vendor_r'] == nil then
-        r['vendor_r'] = vendor
+    if string.match(r['repo'], '^github.com') then
+        r['repo'] = 'https://' .. r['repo'] .. '.git'
+    else
+        -- Check git repo
+        local cmd = 'git ls-remote https://' .. r['repo']
+        local c, _ = run_cmd(cmd)
+        if c ~= nil then
+            -- Git repo
+            r['repo'] = 'https://' .. r['repo']
+        else
+            local curl = 'curl https://' .. r['repo']
+            local _, o = run_cmd(curl)
+            for k, v in pairs(o) do
+                local content = string.match(v, '<meta%s+name=%"go%-import%"%s+content=%"(.-)%"')
+                if content ~= nil then
+                    local irepo = string.match(content, '[^%s]-%s+git%s+([^%s]+)')
+                    if irepo ~= nil then
+                        print(output_ex('Alias ', COLORS.cyan, COLORS.bright) .. output_ex(vendor, COLORS.green, COLORS.bright) .. output_ex(' to ', COLORS.cyan, COLORS.bright) .. output_ex(irepo, COLORS.magenta, COLORS.bright))
+                        r['repo'] = irepo
+                    end
+                else
+                    --print(k, v)
+                end
+            end
+        end
     end
 
     return r
 end
 
-function process_vendor(vendor, force_recursive)
-    print('Process vendor : ' .. vendor)
-    local r = prepare_vendor(vendor)
+function process_vendor(r, force_recursive)
+    print('Process vendor : ' .. r.vendor_r)
     local cmd = 'mkdir -p ' .. r.repo_dir
     run_cmd(cmd)
 
-    print(output_ex('Updating vendor ', COLORS.yellow, COLORS.bright) .. output_ex(vendor, COLORS.green, COLORS.bright) .. output_ex(' fron ', COLORS.yellow, COLORS.bright) .. output_ex(r.repo, COLORS.magenta, COLORS.bright) .. output_ex(' into ', COLORS.yellow, COLORS.bright) .. output_ex(r.repo_dir, COLORS.cyan, COLORS.bright) .. output_ex(' ...', COLORS.yellow, COLORS.bright))
+    print(output_ex('Updating vendor ', COLORS.yellow, COLORS.bright) .. output_ex(r.vendor_r, COLORS.green, COLORS.bright) .. output_ex(' fron ', COLORS.yellow, COLORS.bright) .. output_ex(r.repo, COLORS.magenta, COLORS.bright) .. output_ex(' into ', COLORS.yellow, COLORS.bright) .. output_ex(r.repo_dir, COLORS.cyan, COLORS.bright) .. output_ex(' ...', COLORS.yellow, COLORS.bright))
     -- Test git repo
     local chk_fp = io.open(r.vendor_dir .. '/.git/HEAD')
     if chk_fp == nil then
@@ -405,21 +437,21 @@ function process_vendor(vendor, force_recursive)
     end
 
     if r.recursive == true or force_recursive == true then
-        queue_push(vendor_queue, r.vendor_dir)
+        queue_push(vendor_queue, r.next_dir)
     end
 
     return true
 end
 
-function append_vendor(vendor)
-    r = prepare_vendor(vendor)
+function append_vendor(vendor, import)
+    r = prepare_vendor(vendor, import)
     local vendor_hash = md5_sum(r.vendor_r)
     if vendor_processed[vendor_hash] ~= nil then
         print(output_ex('Vendor : ', COLORS.blue, COLORS.bright) .. output_ex(vendor, COLORS.green, COLORS.bright) .. output_ex(' Exists', COLORS.magenta, COLORS.bright))
         return
     end
 
-    if process_vendor(vendor) == true then
+    if process_vendor(r) == true then
         print(output_ex('Vendor : ', COLORS.blue, COLORS.bright) .. output_ex(vendor, COLORS.green, COLORS.bright) .. output_ex(' Proceesed', COLORS.blue, COLORS.bright))
         vendor_processed[vendor_hash] = vendor
     end
@@ -433,7 +465,7 @@ function parse_imports(content)
     for import in s_imports do
         vendor = valid_vendor_import(import)
         if vendor ~= nil then
-            append_vendor(vendor)
+            append_vendor(vendor, import)
         end
     end
 
@@ -442,7 +474,7 @@ function parse_imports(content)
         for import in m_imports:gmatch('%"(.-)%"') do
             vendor = valid_vendor_import(import)
             if vendor ~= nil then
-                append_vendor(vendor)
+                append_vendor(vendor, import)
             end
         end
     end
@@ -456,6 +488,7 @@ function consume_vendor_queue()
         if dir == nil then break end
         local l = scan_dir(dir, '*.go')
         for _, f in pairs(l) do
+            print(output_ex('Parsing file : ' .. f, COLORS.yellow, COLORS.bright))
             local fp = assert(io.open(f))
             local content = fp:read('*all')
             fp:close()
@@ -584,6 +617,7 @@ function main()
     print(output_ex('Sub-command:', COLORS.cyan, COLORS.bright), sub_cmd)
     print(output_ex('Target directory:', COLORS.cyan, COLORS.bright), target_directory)
     assert_git()
+    assert_curl()
 
     if type(sub_funcs[sub_cmd]) == 'function' then
         -- Go through
